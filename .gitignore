@@ -184,3 +184,5 @@ debug_tools
 
 database/*.db
 .omx/
+# Playwright MCP debug artifacts
+.playwright-mcp/
