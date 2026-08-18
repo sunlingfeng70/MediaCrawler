@@ -33,7 +33,7 @@ from sqlalchemy import select
 import config
 from base.base_crawler import AbstractStore
 from database.db_session import get_session
-from database.models import DouyinAweme, DouyinAwemeComment
+from database.models import DouyinAweme, DouyinAwemeComment, DyCreator
 from tools import utils, words
 from tools.async_file_writer import AsyncFileWriter
 from var import crawler_type_var
@@ -133,8 +133,24 @@ class DouyinDbStoreImplement(AbstractStore):
             await session.commit()
 
     async def store_creator(self, creator: Dict):
-        # 教学版：创作者个人资料不再落库
-        pass
+        """
+        Douyin creator DB storage implementation
+        Args:
+            creator: creator dict
+        """
+        user_id = creator.get("user_id")
+        async with get_session() as session:
+            result = await session.execute(select(DyCreator).where(DyCreator.user_id == user_id))
+            user_detail = result.scalar_one_or_none()
+
+            if not user_detail:
+                creator["add_ts"] = utils.get_current_timestamp()
+                new_creator = DyCreator(**creator)
+                session.add(new_creator)
+            else:
+                for key, value in creator.items():
+                    setattr(user_detail, key, value)
+            await session.commit()
 
 
 class DouyinJsonStoreImplement(AbstractStore):
@@ -259,8 +275,21 @@ class DouyinMongoStoreImplement(AbstractStore):
         utils.logger.info(f"[DouyinMongoStoreImplement.store_comment] Saved comment {comment_id} to MongoDB")
 
     async def store_creator(self, creator_item: Dict):
-        # 教学版：创作者个人资料不再落库
-        pass
+        """
+        Store creator information to MongoDB
+        Args:
+            creator_item: Creator data
+        """
+        user_id = creator_item.get("user_id")
+        if not user_id:
+            return
+
+        await self.mongo_store.save_or_update(
+            collection_suffix="creators",
+            query={"user_id": user_id},
+            data=creator_item
+        )
+        utils.logger.info(f"[DouyinMongoStoreImplement.store_creator] Saved creator {user_id} to MongoDB")
 
 
 class DouyinExcelStoreImplement:

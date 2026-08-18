@@ -35,7 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import config
 from base.base_crawler import AbstractStore
-from database.models import WeiboNote, WeiboNoteComment
+from database.models import WeiboCreator, WeiboNote, WeiboNoteComment
 from tools import utils, words
 from tools.async_file_writer import AsyncFileWriter
 from database.db_session import get_session
@@ -56,13 +56,6 @@ def calculate_number_of_files(file_store_path: str) -> int:
         return max([int(file_name.split("_")[0]) for file_name in os.listdir(file_store_path)]) + 1
     except ValueError:
         return 1
-
-
-def _filter_model_fields(model_cls, item: Dict) -> Dict:
-    """只保留目标 ORM 模型已有的列，避免把已删除/多余字段（如 avatar/gender/
-    profile_url/ip_location/user_id）传给 ORM 构造而报错。教学版兜底保护。"""
-    allowed = {col.name for col in model_cls.__table__.columns}
-    return {k: v for k, v in item.items() if k in allowed}
 
 
 class WeiboCsvStoreImplement(AbstractStore):
@@ -95,14 +88,13 @@ class WeiboCsvStoreImplement(AbstractStore):
     async def store_creator(self, creator: Dict):
         """
         Weibo creator CSV storage implementation
-        教学版：不采集/持久化创作者个人信息，空操作。
         Args:
             creator:
 
         Returns:
 
         """
-        pass
+        await self.writer.write_to_csv(item_type="creators", item=creator)
 
 
 class WeiboDbStoreImplement(AbstractStore):
@@ -116,8 +108,6 @@ class WeiboDbStoreImplement(AbstractStore):
         Returns:
 
         """
-        # 教学版兜底：过滤掉已删除/多余字段，确保不会把 user_id/avatar 等传给 ORM
-        content_item = _filter_model_fields(WeiboNote, content_item)
         note_id = content_item.get("note_id")
         async with get_session() as session:
             stmt = select(WeiboNote).where(WeiboNote.note_id == note_id)
@@ -144,8 +134,6 @@ class WeiboDbStoreImplement(AbstractStore):
         Returns:
 
         """
-        # 教学版兜底：过滤掉已删除/多余字段，确保不会把 user_id/avatar 等传给 ORM
-        comment_item = _filter_model_fields(WeiboNoteComment, comment_item)
         comment_id = comment_item.get("comment_id")
         comment_item["create_time"] = int(comment_item.get("create_time", 0) or 0)
         comment_item["comment_like_count"] = str(comment_item.get("comment_like_count", "0"))
@@ -171,14 +159,29 @@ class WeiboDbStoreImplement(AbstractStore):
     async def store_creator(self, creator: Dict):
         """
         Weibo creator DB storage implementation
-        教学版：不采集/持久化创作者个人信息，空操作（WeiboCreator 表已删除）。
         Args:
             creator:
 
         Returns:
 
         """
-        pass
+        user_id = int(creator.get("user_id"))
+        creator["user_id"] = user_id
+        async with get_session() as session:
+            stmt = select(WeiboCreator).where(WeiboCreator.user_id == user_id)
+            res = await session.execute(stmt)
+            db_creator = res.scalar_one_or_none()
+            if db_creator:
+                db_creator.last_modify_ts = utils.get_current_timestamp()
+                for key, value in creator.items():
+                    if hasattr(db_creator, key):
+                        setattr(db_creator, key, value)
+            else:
+                creator["add_ts"] = utils.get_current_timestamp()
+                creator["last_modify_ts"] = utils.get_current_timestamp()
+                db_creator = WeiboCreator(**creator)
+                session.add(db_creator)
+            await session.commit()
 
 
 class WeiboJsonStoreImplement(AbstractStore):
@@ -211,14 +214,13 @@ class WeiboJsonStoreImplement(AbstractStore):
     async def store_creator(self, creator: Dict):
         """
         creator JSON storage implementation
-        教学版：不采集/持久化创作者个人信息，空操作。
         Args:
             creator:
 
         Returns:
 
         """
-        pass
+        await self.writer.write_single_item_to_json(item_type="creators", item=creator)
 
 
 class WeiboJsonlStoreImplement(AbstractStore):
@@ -233,8 +235,7 @@ class WeiboJsonlStoreImplement(AbstractStore):
         await self.writer.write_to_jsonl(item_type="comments", item=comment_item)
 
     async def store_creator(self, creator: Dict):
-        # 教学版：不采集/持久化创作者个人信息，空操作。
-        pass
+        await self.writer.write_to_jsonl(item_type="creators", item=creator)
 
 
 class WeiboSqliteStoreImplement(WeiboDbStoreImplement):
@@ -287,11 +288,19 @@ class WeiboMongoStoreImplement(AbstractStore):
     async def store_creator(self, creator_item: Dict):
         """
         Store creator information to MongoDB
-        教学版：不采集/持久化创作者个人信息，空操作。
         Args:
             creator_item: Creator data
         """
-        pass
+        user_id = creator_item.get("user_id")
+        if not user_id:
+            return
+
+        await self.mongo_store.save_or_update(
+            collection_suffix="creators",
+            query={"user_id": user_id},
+            data=creator_item
+        )
+        utils.logger.info(f"[WeiboMongoStoreImplement.store_creator] Saved creator {user_id} to MongoDB")
 
 
 class WeiboExcelStoreImplement:
