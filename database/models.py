@@ -148,6 +148,7 @@ class DouyinAwemeComment(Base):
     nickname = Column(Text, comment='用户昵称')
     avatar = Column(Text, comment='用户头像')
     user_signature = Column(Text, comment='用户签名')
+    homepage_url = Column(Text, comment='评论者首页URL')
     ip_location = Column(Text, comment='IP地址位置')
     add_ts = Column(BigInteger, comment='添加时间戳')
     last_modify_ts = Column(BigInteger, comment='最后修改时间戳')

@@ -203,6 +203,7 @@ async def update_dy_aweme_comment(aweme_id: str, comment_item: Dict):
     user_info = comment_item.get("user", {})
     comment_id = comment_item.get("cid")
     parent_comment_id = comment_item.get("reply_id", "0")
+    sec_uid = user_info.get("sec_uid")
     avatar_info = (user_info.get("avatar_medium", {}) or user_info.get("avatar_300x300", {}) or user_info.get("avatar_168x168", {}) or user_info.get("avatar_thumb", {}) or {})
     save_comment_item = {
         "comment_id": comment_id,
@@ -211,12 +212,13 @@ async def update_dy_aweme_comment(aweme_id: str, comment_item: Dict):
         "aweme_id": aweme_id,
         "content": comment_item.get("text"),
         "user_id": user_info.get("uid"),
-        "sec_uid": user_info.get("sec_uid"),
+        "sec_uid": sec_uid,
         "short_user_id": user_info.get("short_id"),
         "user_unique_id": user_info.get("unique_id"),
         "user_signature": user_info.get("signature"),
         "nickname": user_info.get("nickname"),
         "avatar": avatar_info.get("url_list", [""])[0],
+        "homepage_url": f"https://www.douyin.com/user/{sec_uid}" if sec_uid else "",
         "sub_comment_count": str(comment_item.get("reply_comment_total", 0)),
         "like_count": (comment_item.get("digg_count") if comment_item.get("digg_count") else 0),
         "last_modify_ts": utils.get_current_timestamp(),
