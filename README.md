@@ -153,6 +153,8 @@ uv run playwright install
 >
 > 如果不想使用 CDP 模式，可以在 `config/base_config.py` 中设置 `ENABLE_CDP_MODE = False` 切换为标准 Playwright 模式。
 
+> ⚠️ **本仓库默认已切换为 CDP 自启模式**（`CDP_CONNECT_EXISTING = False`）：爬虫自行启动 Chrome、自动分配端口，并把登录态持久化到 `browser_data/`，无需手动开启远程调试，首次扫码登录后后续运行免登录。连接已有 Chrome（9222 远程调试）的方式在本环境不可用。
+
 ## 🚀 运行爬虫程序
 
 ```shell
@@ -287,6 +289,40 @@ MediaCrawler 支持多种数据存储方式，包括 CSV、JSON、JSONL、Excel�
 
 
 [🚀 MediaCrawlerPro 重磅发布 🚀！更多的功能，更好的架构设计！开源不易，欢迎订阅支持！](https://github.com/MediaCrawlerPro)
+
+
+## 🤖 Agent 智能体 Skill
+
+本仓库附带一个 **Agent Skill**（`.opencode/skills/mediacrawler/`），把 `main.py` 命令行封装成 AI 智能体可直接调用的接口，让 Claude Code、opencode 等 Agent 自主完成采集，无需人工拼接参数。
+
+### 前置条件
+
+- 已按上文完成环境安装（`uv sync`）
+- 采集默认走 **CDP 自启模式**：爬虫自行启动 Chrome，登录态持久化到 `browser_data/`，首次扫码登录一次，后续运行免登录
+
+### 常用命令
+
+```bash
+# 环境自检
+python .opencode/skills/mediacrawler/mediacrawler_runner.py check
+
+# 关键词搜索（含评论）
+python .opencode/skills/mediacrawler/mediacrawler_runner.py search \
+  --platform xhs --keywords "人工智能" --get-comment yes
+
+# 指定作品/视频
+python .opencode/skills/mediacrawler/mediacrawler_runner.py detail \
+  --platform dy --specified-id "https://v.douyin.com/xxxx/" --get-comment yes
+
+# 创作者主页
+python .opencode/skills/mediacrawler/mediacrawler_runner.py creator \
+  --platform xhs --creator-id "xxxx"
+
+# 汇总爬取结果（输出 JSON 摘要）
+python .opencode/skills/mediacrawler/mediacrawler_runner.py report --platform dy
+```
+
+> 💡 Runner 会把参数翻译为 `main.py` 的原始 CLI 参数；`--dry-run` 可预览生成的命令（cookie 自动脱敏），`--cookies-file` 可安全传入登录 Cookie。完整用法见 `.opencode/skills/mediacrawler/SKILL.md`。
 
 
 ## 💬 交流群组
